@@ -18,16 +18,16 @@ app.post('/student', (req, res) => {
     const data = JSON.stringify(req.body);
     const params = {
         Bucket: process.env.BUCKET,
-        Key: `${data.name}.json`,
+        Key: `${req.body.name}.json`,
         Body: data
     };
     s3.upload(params, (err, data) => {
         if (err) {
             console.error(err);
-            res.status(500).send(`Error saving data to S3: ${err}`);
+            res.status(500).send(`Error saving data to S3: ${JSON.stringify(err)}`);
         } else {
-            console.log(`Data saved to S3: ${data.Location}`);
-            res.send(`Data saved to S3 review the AWS console: ${data}`);
+            console.log(`Data saved to S3: ${JSON.stringify(data.Location)}`);
+            res.send(`Data saved to S3 review the AWS console: ${JSON.stringify(data)}`);
         }
     });
 });
