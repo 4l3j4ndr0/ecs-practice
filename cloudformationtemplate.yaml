@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  LabVpc:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '10.3.0.0/16'
+      Tags:
+        - Key: 'Name'
+          Value: 'LabVPC'
+  Public1A:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref LabVpc
+      CidrBlock: '10.3.1.0/24'
+      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: 'Name'
+          Value: 'public-1a'
+  Public1B:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref LabVpc
+      CidrBlock: '10.3.2.0/24'
+      AvailabilityZone: 'us-east-1b'
+      Tags:
+        - Key: 'Name'
+          Value: 'public-1b'
+  Public1C:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref LabVpc
+      CidrBlock: '10.3.3.0/24'
+      AvailabilityZone: 'us-east-1c'
+      Tags:
+        - Key: 'Name'
+          Value: 'public-1c'
+  Private1A:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref LabVpc
+      CidrBlock: '10.3.4.0/24'
+      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: 'Name'
+          Value: 'private-1a'
+  Private1B:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref LabVpc
+      CidrBlock: '10.3.5.0/24'
+      AvailabilityZone: 'us-east-1b'
+      Tags:
+        - Key: 'Name'
+          Value: 'private-1b'
+  Private1C:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref LabVpc
+      CidrBlock: '10.3.6.0/24'
+      AvailabilityZone: 'us-east-1c'
+      Tags:
+        - Key: 'Name'
+          Value: 'private-1c'
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties: 
+      Tags: 
+        - Key: 'Name'
+          Value: 'lab-ecs-igw'
+  NatGatewayEIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: LabEcsNatGatewayEI
+  NatGateway:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !GetAtt Public1A.SubnetId
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt LabVpc.VpcId
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt LabVpc.VpcId
+  InternetGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !GetAtt LabVpc.VpcId  # El ID del VPC al que se adjuntará el Internet Gateway.
+      InternetGatewayId: !Ref InternetGateway  # La referencia al recurso del Internet Gateway.
+  NATGatewayRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable  # La referencia a la tabla de rutas privada.
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGateway  # La referencia al recurso del NAT Gateway.
+  InternetGatewayRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicRouteTable  # La referencia a la tabla de rutas pública.
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+  PublicAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref Public1A
+  PublicAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref Public1B
+  PublicAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref Public1C
+  PrivateAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref Private1A
+  PrivateAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref Private1B
+  PrivateAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref Private1C
+  
+  MyBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: lab-ecs-data-bucket
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+  
+  LabEcsExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: lab-ecs-service-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+  LabEcsServicePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: lab-ecs-service-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Sid: AllowEcrActions
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+            Resource: '*'
+          - Effect: Allow
+            Sid: AllowS3Actions
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+            Resource: !Sub 'arn:aws:s3:::${MyBucket}/*'
+          - Effect: Allow
+            Sid: AllowCloudwatchActions
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+      Roles:
+        - !Ref LabEcsExecutionRole
+
